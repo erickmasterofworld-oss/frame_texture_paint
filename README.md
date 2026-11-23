@@ -4,6 +4,10 @@ A lightweight Blender add-on (4.2 / 5.x) for **frame-by-frame texture animation*
 
 Paint hand-drawn 2D animations right on your 3D models, manage multiple animated texture nodes in separate folders, and automatically save everything as clean PNG sequences.
 
+
+https://github.com/user-attachments/assets/6735dfe4-6c8a-4724-a215-fa30f271ed55
+
+
 ## ✨ Features
 - **Frame-by-Frame Texture Workflow:** Create blank keyframes, duplicate previous frames, or delete keys with automatic frame holding (`Hold`) across the timeline.
 - **Multi-Node Support:** Switch between all `Image Texture` nodes in your active material directly from the 3D Viewport N-Panel without opening the Shader Editor.
