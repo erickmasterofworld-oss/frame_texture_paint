@@ -299,6 +299,39 @@ class FRAMEPAINT_OT_sync_keys(bpy.types.Operator):
 
 @persistent
 def on_frame_change(scene):
+    # Во время многопоточного рендера Cycles нельзя напрямую менять ID-блоки из фонового потока
+    if hasattr(bpy.app, "is_job_running") and bpy.app.is_job_running('RENDER'):
+        # Безопасно обновляем только если кадр реально изменился, без reload()
+        for mat in bpy.data.materials:
+            if mat.use_nodes and mat.node_tree:
+                for node in mat.node_tree.nodes:
+                    if node.type == 'TEX_IMAGE' and "seq_folder" in node:
+                        seq_dir = get_node_seq_dir(node, mat.name, create=False)
+                        if seq_dir and os.path.exists(seq_dir):
+                            folder_tag = sanitize_name(node["seq_folder"])
+                            frame = scene.frame_current
+                            best_num = -1
+                            best_file = None
+                            for f in os.listdir(seq_dir):
+                                if f.startswith("frame_") and f.endswith(".png"):
+                                    digits = re.findall(r"\d+", f)
+                                    if digits:
+                                        num = int(digits.pop(0))
+                                        if num <= frame and num > best_num:
+                                            best_num = num
+                                            best_file = f
+                            if best_file:
+                                best_path = os.path.join(seq_dir, best_file)
+                                best_name = f"{folder_tag}_{best_file}"
+                                img = bpy.data.images.get(best_name)
+                                if not img and os.path.exists(best_path):
+                                    img = bpy.data.images.load(best_path)
+                                    img.name = best_name
+                                if img and node.image != img:
+                                    node.image = img
+        return
+
+    # Обычный режим работы во вьюпорте
     context = bpy.context
     for mat in bpy.data.materials:
         if mat.use_nodes and mat.node_tree:
@@ -306,15 +339,18 @@ def on_frame_change(scene):
                 if node.type == 'TEX_IMAGE' and "seq_folder" in node:
                     update_single_node(context, node, mat.name, create_new=False)
 
-    active_node, _ = get_active_tex_node(context)
-    if active_node and active_node.image:
-        context.scene.tool_settings.image_paint.mode = 'IMAGE'
-        context.scene.tool_settings.image_paint.canvas = active_node.image
+    if getattr(context, "screen", None) and getattr(context, "view_layer", None):
+        active_node, _ = get_active_tex_node(context)
+        if active_node and active_node.image:
+            try:
+                context.scene.tool_settings.image_paint.mode = 'IMAGE'
+                context.scene.tool_settings.image_paint.canvas = active_node.image
+            except Exception:
+                pass
 
-    for area in context.screen.areas:
-        if area.type == 'VIEW_3D':
-            area.tag_redraw()
-
+        for area in context.screen.areas:
+            if area.type == 'VIEW_3D':
+                area.tag_redraw()
 
 # --- ИНТЕРФЕЙС ---
 def get_sorted_key_frames(seq_dir):
